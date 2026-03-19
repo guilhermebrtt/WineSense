@@ -2,6 +2,15 @@
 CREATE DATABASE wineSense;
 USE wineSense;
 
+-- Tabela empresa para guardar os dados da empresa cliente do sistema
+CREATE TABLE empresa(
+	idEmpresa INT PRIMARY KEY AUTO_INCREMENT,
+	nome VARCHAR(50) NOT NULL,
+	email VARCHAR(60) UNIQUE,
+	telefone VARCHAR(20),
+	endereco VARCHAR(50)
+);
+
 -- Tabela usuário que vai guardar os dados de acesso do usuário que vai acessar o banco/ dashboard
 CREATE TABLE usuario(
 	idUsuario INT PRIMARY KEY AUTO_INCREMENT,
@@ -14,17 +23,11 @@ CREATE TABLE usuario(
     FOREIGN KEY (fkEmpresa) REFERENCES empresa(idEmpresa)
 );
 
--- Tabela empresa para guardar os dados da empresa cliente do sistema
-CREATE TABLE empresa(
-	idEmpresa INT PRIMARY KEY AUTO_INCREMENT,
-	nome VARCHAR(50) NOT NULL,
-	email VARCHAR(60) UNIQUE,
-	telefone VARCHAR(20),
-	nomePais VARCHAR(50),
-	nomeEstado VARCHAR(40),
-	nomeCidade VARCHAR(80),
-	nomeRua VARCHAR(50),
-	numeroRua INT
+CREATE TABLE uva(
+	idUva INT PRIMARY KEY AUTO_INCREMENT,
+	nome VARCHAR(20),
+	tempMinima INT,
+	tempMaxima INT
 );
 
 -- Tabela para guardar os dados dos tipos de vinho produzidos pela empresa
@@ -38,13 +41,6 @@ CREATE TABLE vinho(
 	CONSTRAINT cTipo CHECK (tipoVinho IN('Branco', 'Tinto'))
 );
 
-CREATE TABLE uva(
-	idUva INT PRIMARY KEY AUTO_INCREMENT,
-	nome VARCHAR(20),
-	tempMinima INT,
-	tempMaxima INT
-);
-
 -- Tabela para guardar os dados do sensor, como em que tanque ele está localizado na empresa contratante
 CREATE TABLE sensor(
 	idSensor INT PRIMARY KEY AUTO_INCREMENT,
@@ -54,6 +50,7 @@ CREATE TABLE sensor(
 	condicao VARCHAR(20),
 	CONSTRAINT condicaoC CHECK(condicao IN ('Funcionando', 'Defeituoso'))
 );
+
 CREATE TABLE tanque(
 	idTanque INT PRIMARY KEY AUTO_INCREMENT,
     codTanque VARCHAR(30) NOT NULL,
@@ -78,10 +75,11 @@ CREATE TABLE registro(
     FOREIGN KEY (fkTanque) REFERENCES tanque (idTanque) 
 );
 
-INSERT INTO empresa(nome, email, telefone, nomePais, nomeEstado, nomeCidade, nomeRua, numeroRua) VALUES
-('Wine', 'wine@gmail.com', '5511987614523', 'Brasil', 'São Paulo', 'Campinas', 'Rua do Vinho', 567);
-INSERT INTO empresa(nome, email, telefone, nomePais, nomeEstado, nomeCidade, nomeRua, numeroRua) VALUES
-('Reservado', 'reservado@gmail.com', '5511977014235', 'Brasil', 'São Paulo', 'Ribeirão Preto', 'Rua da Uva', 5547);
+-- INSERTS 
+INSERT INTO empresa(nome, email, telefone, endereco) VALUES
+('Wine', 'wine@gmail.com', '5511987614523', 'Rua do Vinho 567, São Paulo');
+INSERT INTO empresa(nome, email, telefone, endereco) VALUES
+('Reservado', 'reservado@gmail.com', '5511977014235','Rua da Uva 5547, Ribeirão Preto');
 
 INSERT INTO usuario(nome, sobrenome, email, telefone, senha, fkEmpresa) VALUES
 ('Carolina', 'Soares', 'carol.soares@gmail.com', '5511993114452', '123456',1);
@@ -98,7 +96,6 @@ INSERT INTO vinho(fkUva, tipoVinho, tempMinima, tempMaxima) VALUES
 INSERT INTO vinho(fkUva, tipoVinho, tempMinima, tempMaxima) VALUES
 (2, 'Tinto', 14, 20);
 
-
 INSERT INTO sensor (tanqueLocalizado,codSensor,tempAtual,condicao) VALUES
 ('Tanque A24', '004', 23, 'Funcionando');
 INSERT INTO sensor (tanqueLocalizado,codSensor,tempAtual,condicao) VALUES
@@ -114,10 +111,15 @@ INSERT INTO registro(temperatura,fkSensor,fkTanque) VALUES
 INSERT INTO registro(temperatura,fkSensor,fkTanque) VALUES 
 (10.5,'1','2');
 
-SELECT * FROM vinho WHERE tipoVinho = 'Tinto';
+-- SELECTS 
 
-SELECT * FROM empresa WHERE nomeEstado = 'São Paulo';
+-- Ver temperatura registrada por sensor, Base de gráficos em tempo real
+SELECT s.idSensor, s.codSensor, r.temperatura, r.data_hora
+FROM sensor s
+INNER JOIN registro r 
+ON s.idSensor = r.fkSensor;
 
+-- selecionar tipo de vinho 
 SELECT 
     fkUva AS 'Uva',
     CASE 
@@ -126,17 +128,39 @@ SELECT
     END AS 'Categoria'
 FROM vinho;
 
-SELECT data_hora, temperatura 
-FROM registro 
-ORDER BY data_hora DESC;
+-- Detectar temperatura fora do ideal
+SELECT idRegistro as 'registro', tanqueLocalizado as 'tanque', data_hora as 'momento',
+	CASE 
+	WHEN r.temperatura BETWEEN v.tempMinima AND v.tempMaxima 
+	THEN 'Ideal'
+	ELSE 'Alerta'
+	END AS status
+	FROM registro r
+	INNER JOIN sensor s ON r.fkSensor = s.idSensor
+	INNER JOIN tanque t ON r.fkTanque = t.idTanque
+	INNER JOIN vinho v ON t.fkVinho = v.idVinho
+	INNER JOIN empresa e ON t.fkEmpresa = e.idEmpresa;
+;
 
-SELECT 
-    u.nome AS Nome_Usuario,
-    e.nome AS Nome_Empresa
-FROM empresa e
-JOIN usuario u ON e.idEmpresa = u.fkEmpresa;
+-- Qual empresa é dona de cada tanque
+SELECT t.codTanque, e.nome AS empresa
+FROM tanque t
+INNER JOIN empresa e 
+ON t.fkEmpresa = e.idEmpresa;
 
+-- Monitoramento geral da fermentação
+SELECT e.nome AS empresa, t.codTanque, v.tipoVinho, s.codSensor, r.temperatura, v.tempMinima, v.tempMaxima, r.data_hora
+FROM registro r
+INNER JOIN sensor s ON r.fkSensor = s.idSensor
+INNER JOIN tanque t ON r.fkTanque = t.idTanque
+INNER JOIN vinho v ON t.fkVinho = v.idVinho
+INNER JOIN empresa e ON t.fkEmpresa = e.idEmpresa;
 
+-- Relacionar vinho com o tipo de uva
+SELECT v.tipoVinho, u.nome AS uva, u.tempMinima, u.tempMaxima
+FROM vinho v
+INNER JOIN uva u 
+ON v.fkUva = u.idUva;
 
 
 
